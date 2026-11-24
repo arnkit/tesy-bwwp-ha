@@ -6,7 +6,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Decoder test (C++)
-        run: tests/run.sh
+        run: sh tests/run.sh
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Archived Node-RED flow test
