@@ -1,0 +1,352 @@
+# =============================================================================
+# TESY Aquathermica Pro (BWWP) - example Home Assistant dashboard (sections view)
+#
+# HOW TO USE: Dashboard -> three-dot menu -> Edit -> Raw configuration editor ->
+# add this as a new view (paste it under "views:"), then adjust:
+#   1. Entity IDs: the ESPHome device is called "TESY Aquathermica Pro", so the IDs start
+#      with  tesy_aquathermica_pro_ . If HA put an area name in front of it (e.g.
+#      "cellar_tesy_aquathermica_pro_..."), use find & replace in the editor.
+#   2. Power/energy: tesy_heatpump_plug_switch_0_power / _energy are PLACEHOLDERS for a
+#      Shelly (or any other) smart plug measuring the heat pump. Replace or delete them.
+#   3. Picture: the background image is NOT part of this repository (it comes from a TESY
+#      brochure, (c) TESY). See docs/dashboard.md for how to extract it, save it as
+#      /config/www/TESY_EN.png (HA media: "local/TESY_EN.png"). The badge positions
+#      (left/top in %) are tuned to that image; move them if you use another picture.
+#      Alternative to the media-source block: image: /local/TESY_EN.png
+# =============================================================================
+title: TESY BWWP
+path: tesy-bwwp
+icon: ''
+type: sections
+max_columns: 3
+sections:
+  - type: grid
+    cards:
+      - type: heading
+        heading: TESY Aquathermica Pro 260
+        heading_style: title
+        icon: mdi:water-thermometer
+      - type: picture-elements
+        elements:
+          - type: state-label
+            entity: sensor.tesy_heatpump_plug_switch_0_power
+            style:
+              left: 9%
+              top: 10%
+              color: white
+              background: green
+              padding: 0px 0px 0px 0px
+              transform: translate(0, -50%)
+              width: 55px
+              height: 29px
+              box-sizing: border-box
+              display: flex
+              align-items: center
+              justify-content: flex-end
+              border-radius: 5px
+              font-size: 12px
+              font-weight: 600
+          - type: icon
+            icon: mdi:flash-triangle-outline
+            style:
+              left: 5%
+              top: 10.8%
+              color: green
+              --mdc-icon-size: 33px
+          - type: state-badge
+            style:
+              left: 50%
+              top: 85%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            name: null
+            entity: sensor.tesy_aquathermica_pro_reg_2020_t02_btt_bottom_of_tank
+          - type: state-badge
+            style:
+              left: 50%
+              top: 59%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            entity: sensor.tesy_aquathermica_pro_reg_2021_t03_ttt_top_of_tank
+            name: null
+          - type: state-badge
+            style:
+              left: 94%
+              top: 55%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            entity: sensor.tesy_aquathermica_pro_reg_2025_actual_temperature
+            name: null
+          - type: state-badge
+            style:
+              left: 68%
+              top: 27%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            entity: sensor.tesy_aquathermica_pro_reg_2022_t04_ct_coil_evaporator_temperature
+            name: null
+          - type: state-badge
+            style:
+              left: 37%
+              top: 44%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            entity: sensor.tesy_aquathermica_pro_reg_2028_t07_et_exhaust_temperature_compressor_outlet
+            name: null
+          - type: state-badge
+            style:
+              left: 24%
+              top: 31%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            entity: sensor.tesy_aquathermica_pro_reg_2023_t05_sut_suction_temperature_compressor_refrigerant_inlet
+            name: null
+          - type: state-badge
+            style:
+              left: 76%
+              top: 13%
+              --label-badge-text-color: black
+              --label-badge-background-color: white
+            entity: sensor.tesy_aquathermica_pro_reg_2019_t01_at_ambient_temperature
+            name: null
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                state: 'on'
+            elements:
+              - type: icon
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                icon: mdi:engine
+                tap_action:
+                  action: more-info
+                style:
+                  left: 25%
+                  top: 48%
+                  color: green
+                  --mdc-icon-size: 40px
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                state: 'off'
+            elements:
+              - type: icon
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                icon: mdi:engine-off
+                tap_action:
+                  action: more-info
+                style:
+                  left: 25%
+                  top: 48%
+                  color: black
+                  --mdc-icon-size: 40px
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                state_not: 'on'
+              - condition: state
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                state_not: 'off'
+            elements:
+              - type: icon
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                icon: mdi:engine-outline
+                style:
+                  left: 25%
+                  top: 48%
+                  color: grey
+                  --mdc-icon-size: 40px
+              - type: icon
+                entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+                icon: mdi:comment-question-outline
+                style:
+                  left: 28%
+                  top: 45.5%
+                  color: grey
+                  --mdc-icon-size: 20px
+          - type: conditional
+            conditions:
+              - condition: numeric_state
+                entity: sensor.tesy_aquathermica_pro_reg_2067_o02_fan_speed
+                above: 0
+            elements:
+              - type: icon
+                entity: sensor.tesy_aquathermica_pro_reg_2067_o02_fan_speed
+                icon: mdi:fan
+                style:
+                  left: 30%
+                  top: 18%
+                  color: green
+                  --mdc-icon-size: 40px
+              - type: state-label
+                entity: sensor.tesy_aquathermica_pro_reg_2067_o02_fan_speed
+                suffix: ' rpm'
+                style:
+                  left: 30%
+                  top: 23%
+                  color: white
+                  background: green
+                  padding: 0px 0px 0px 0px
+                  border-radius: 10px
+                  font-size: 10px
+                  font-weight: 600
+          - type: conditional
+            conditions:
+              - condition: numeric_state
+                entity: sensor.tesy_aquathermica_pro_reg_2067_o02_fan_speed
+                below: 1
+            elements:
+              - type: icon
+                entity: sensor.tesy_aquathermica_pro_reg_2067_o02_fan_speed
+                icon: mdi:fan-off
+                style:
+                  left: 30%
+                  top: 18%
+                  color: black
+                  --mdc-icon-size: 40px
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+                state: ECO
+            elements:
+              - type: icon
+                entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+                icon: mdi:heat-pump-outline
+                tap_action:
+                  action: more-info
+                style:
+                  left: 5%
+                  top: 5%
+                  color: green
+                  --mdc-icon-size: 40px
+              - type: state-label
+                entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+                style:
+                  left: 9%
+                  top: 4.3%
+                  color: white
+                  background: green
+                  padding: 0px 0px 0px 0px
+                  transform: translate(0, -50%)
+                  width: 55px
+                  height: 29px
+                  box-sizing: border-box
+                  display: flex
+                  align-items: center
+                  justify-content: flex-start
+                  border-radius: 5px
+                  font-size: 12px
+                  font-weight: 600
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+                state: Boost
+            elements:
+              - type: icon
+                entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+                icon: mdi:rocket-launch
+                tap_action:
+                  action: more-info
+                style:
+                  left: 5%
+                  top: 5%
+                  color: red
+                  --mdc-icon-size: 40px
+              - type: state-label
+                entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+                style:
+                  left: 13%
+                  top: 4.5%
+                  color: white
+                  background: red
+                  padding: 0px 1px 0px 3px
+                  border-radius: 10px
+                  font-size: 10px
+                  font-weight: 600
+        image:
+          media_content_id: media-source://media_source/local/TESY_EN.png
+          media_content_type: image/png
+          metadata:
+            title: TESY_EN.png
+            thumbnail: null
+            media_class: image
+            children_media_class: null
+            navigateIds:
+              - {}
+              - media_content_type: app
+                media_content_id: media-source://media_source
+    column_span: 1
+  - type: grid
+    cards:
+      - type: heading
+        heading: Status
+        icon: mdi:heat-pump
+      - type: tile
+        grid_options:
+          columns: 6
+          rows: 1
+        entity: sensor.tesy_aquathermica_pro_reg_1012_operating_mode
+        name: Operating mode
+        icon: mdi:heat-pump-outline
+        show_entity_picture: false
+        hide_state: false
+        vertical: false
+        features_position: bottom
+      - type: tile
+        entity: binary_sensor.tesy_aquathermica_pro_reg_2050_08_o08_compressor_bit_8
+        name: Compressor
+        icon: mdi:engine
+        color: red
+        vertical: false
+        features_position: bottom
+      - type: tile
+        entity: sensor.tesy_aquathermica_pro_reg_2021_t03_ttt_top_of_tank
+        name: Tank top (TTT)
+        vertical: false
+        features_position: bottom
+      - type: tile
+        entity: sensor.tesy_aquathermica_pro_reg_2020_t02_btt_bottom_of_tank
+        name: Tank bottom (BTT)
+        vertical: false
+        features_position: bottom
+      - type: tile
+        entity: sensor.tesy_aquathermica_pro_reg_2025_actual_temperature
+        name: Actual temperature
+        vertical: false
+        features_position: bottom
+      - type: tile
+        entity: sensor.tesy_aquathermica_pro_reg_1104_setpoint_temperature
+        name: Setpoint temperature
+        vertical: false
+        features_position: bottom
+      - type: heading
+        heading: Power & energy
+        icon: mdi:flash
+      - type: tile
+        entity: sensor.tesy_heatpump_plug_switch_0_power
+        name: Current power
+        vertical: false
+        features_position: bottom
+      - type: tile
+        entity: sensor.tesy_heatpump_plug_switch_0_energy
+        name: Total energy
+        vertical: false
+        features_position: bottom
+      - type: statistics-graph
+        title: Energy per day
+        chart_type: bar
+        period: day
+        days_to_show: 7
+        stat_types:
+          - change
+        entities:
+          - sensor.tesy_heatpump_plug_switch_0_energy
+        grid_options:
+          columns: 12
+          rows: 6
+    column_span: 1
+cards: []

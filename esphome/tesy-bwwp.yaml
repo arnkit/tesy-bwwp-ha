@@ -1,0 +1,373 @@
+# =============================================================================
+# TESY Aquathermica Pro (BWWP) - passive RS485 sniffer
+# ESPHome on a Wemos D1 mini (ESP8266) + TTL-to-RS485 module
+#
+# The ESP only listens (it never transmits) and publishes the values through the ESPHome API.
+# Decoding lives in tesy_decoder.h (v3). The bus carries Modbus-RTU, FC 0x10, 9600 8N1:
+# the unit writes three blocks of 90 registers each in turn (starting at 1001 / 1091 / 2001).
+# The decoder checks the CRC and stores every register by its ADDRESS - exactly like the
+# Node-RED flow does. If a register moves, decoding keeps working.
+# IMPORTANT: stop_bits must be 1 (see below).
+#
+# WIRING (receive only, the ESP never transmits on the bus):
+#
+#   Variant A: auto-direction module (MAX13487, only VCC/TX/RX/GND + A/B) - TESTED
+#   --------------------------------------------------------------------------
+#   Module VCC     -> 3V3
+#   Module GND     -> GND
+#   Module pin TX  -> D7 (GPIO13)   "TX" is the module's OUTPUT here (bus data to the ESP)
+#   Module pin RX  -> leave OPEN    module INPUT: do NOT tie it to 3V3/GND
+#                                   (a fixed level blocks reception on these modules)
+#   Module A / B   -> in parallel to A / B of the TESY (CN5, see docs/hardware.md)
+#   Check: the RX LED on the module blinks with the TESY packets, the TX LED stays dark.
+#
+#   Variant B: classic MAX3485/SP3485 module with separate DE/RE pins - UNTESTED
+#   --------------------------------------------------------------------------
+#   RO -> D7 (GPIO13), DE + RE both to GND, DI open, VCC to 3V3 (NOT 5 V on RO!).
+#   A 5 V MAX485 drives 5 V on RO; the ESP8266 only tolerates 3.3 V.
+#
+#   Why D7 and not the default RX (D9/GPIO3)? The hardware UART0 is swapped to
+#   GPIO13/15. That keeps the USB port free for flashing and it does not disturb the
+#   bus; logs go out over UART1 (GPIO2) and WiFi.
+# =============================================================================
+
+substitutions:
+  devicename: tesy-bwwp
+  friendly: "TESY Aquathermica Pro"
+  # Serial parameters of the bus: 9600 8N1. The TESY sends only ONE stop bit.
+  # WARNING: with stop_bits "2" the ESP loses bytes (mostly 0x00) and the data is useless.
+  baud: "9600"
+  parity: "NONE"      # NONE | EVEN | ODD
+  stop_bits: "1"
+
+esphome:
+  name: ${devicename}
+  friendly_name: ${friendly}
+  includes:
+    - tesy_decoder.h      # decoder class, lives next to this YAML
+
+esp8266:
+  board: d1_mini
+
+# Logger: UART0 belongs to the bus, so logging goes to UART1 (TX only, GPIO2)
+# and is also visible over WiFi/API. Use level: DEBUG only while troubleshooting.
+logger:
+  hardware_uart: UART1
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    # No OTA password: saves flash/RAM on the ESP8266. The device is protected by the
+    # encrypted API key; OTA from the ESPHome Device Builder works without it.
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Optional fixed IP (adjust to your network):
+  # manual_ip:
+  #   static_ip: 192.168.1.60
+  #   gateway: 192.168.1.1
+  #   subnet: 255.255.255.0
+
+# ----------------------------------------------------------------------------
+# Optional: load the remaining (disabled by default) registers/parameters.
+# WARNING RAM: the ESP8266 only has about 30-40 kB of free heap. With all ~90 extra
+# entities it gets tight (crashes/reboots possible). Better copy only single entries
+# from tesy-bwwp-extra.yaml into this file.
+# packages:
+#   extra: !include tesy-bwwp-extra.yaml
+# ----------------------------------------------------------------------------
+
+# Serial bus. rx_pin GPIO13 = UART0 swap; no tx_pin -> nothing is ever sent.
+uart:
+  id: tesy_uart
+  rx_pin: GPIO13
+  baud_rate: ${baud}
+  parity: ${parity}
+  stop_bits: ${stop_bits}
+  rx_buffer_size: 1024      # generous: blocks with >100 registers arrive in one piece
+  # To debug the raw data (hex in the log) uncomment this and set logger: level: DEBUG:
+  # debug:
+  #   direction: RX
+  #   dummy_receiver: false
+  #   after:
+  #     bytes: 189
+  #   sequence:
+  #     - lambda: UARTDebug::log_hex(direction, bytes, ':');
+
+# Move bytes from the UART buffer into the decoder (every 20 ms).
+# The decoder assembles frames, checks the CRC and fills the register table.
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t b;
+          while (id(tesy_uart).available()) {
+            if (id(tesy_uart).read_byte(&b)) tesy::bwwp.feed(b);
+          }
+
+# ============================================================================
+# Binary sensors  (template lambdas are evaluated on every loop,
+# a state is only published on change)
+# ============================================================================
+binary_sensor:
+  # --- Diagnostics: is fresh data still arriving? (counterpart of expire_after 180 s) ---
+  - platform: template
+    name: "RS485 data fresh"
+    device_class: connectivity
+    entity_category: diagnostic
+    lambda: |-
+      return !tesy::bwwp.stale();
+
+  - platform: template
+    name: "Legionella protection"
+    # Register 1047 (g02 maintenance time): ON if != 0
+    lambda: |-
+      return tesy::bwwp.nonzero(1047);
+
+  - platform: template
+    name: "Reg 2050.08 - O08 - Compressor (bit 8)"
+    # Register 2050, bit 8
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 8);
+
+  - platform: template
+    name: "Reg 2050.09 - O09 - Electric heater (bit 9)"
+    # Register 2050, bit 9
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 9);
+
+  - platform: template
+    name: "Reg 1011 - Device on (0 = off)"
+    # Register 1011, ON if value != 0
+    icon: mdi:power
+    lambda: |-
+      return tesy::bwwp.nonzero(1011);
+
+  - platform: template
+    name: "Reg 1129 - Vacation active"
+    # Register 1129, ON if value != 0
+    icon: mdi:island
+    lambda: |-
+      return tesy::bwwp.nonzero(1129);
+
+  - platform: template
+    name: "Reg 1107 - r04 - Electric heating enabled (Boost or High-Demand)"
+    # Register 1107, ON if value != 0
+    icon: mdi:flash
+    lambda: |-
+      return tesy::bwwp.nonzero(1107);
+
+# ============================================================================
+# Sensors
+# All temperatures: T[°C] = raw/2 - 30. Names with "(?)" or "(unclear)" are not
+# verified. Without data (or data older than 180 s) the value becomes "unknown".
+# ============================================================================
+sensor:
+  # --- Sniffer diagnostics ---
+  - platform: template
+    name: "RS485 bytes received"
+    # All bytes arriving on D7. 0 = nothing arrives at the pin (wiring/module/bus silent).
+    # Counts up but "valid frames" stays 0 = baud rate/parity/stop bits wrong.
+    entity_category: diagnostic
+    state_class: total_increasing
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.bytes_rx;
+
+  - platform: template
+    name: "RS485 valid frames"
+    # Counter of valid Modbus frames with a correct CRC (one every ~2.7 s, blocks 1001/1091/2001 in turn).
+    # Stays at 0 -> check wiring/baud rate/stop bits.
+    entity_category: diagnostic
+    state_class: total_increasing
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.frames_ok;
+
+  - platform: template
+    name: "RS485 CRC errors"
+    # Frame structure recognised but CRC wrong (transmission error). Should be ~0 in normal operation.
+    # If it keeps rising: check stop bits (must be 1), baud rate, wiring, A/B.
+    entity_category: diagnostic
+    state_class: total_increasing
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.crc_errors;
+
+  - platform: template
+    name: "RS485 age of last frame"
+    entity_category: diagnostic
+    device_class: duration
+    unit_of_measurement: "s"
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      if (tesy::bwwp.last_ms == 0) return NAN;
+      return (millis() - tesy::bwwp.last_ms) / 1000.0f;
+
+  - platform: wifi_signal
+    name: "WiFi signal"
+    entity_category: diagnostic
+    update_interval: 60s
+
+  # --- Measurements and states of the heat pump ---
+  - platform: template
+    name: "Reg 1104 - Setpoint temperature"
+    # Register 1104, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(1104);
+
+  - platform: template
+    name: "Reg 2019 - t01 - AT ambient temperature"
+    # Register 2019, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2019);
+
+  - platform: template
+    name: "Reg 2020 - t02 - BTT bottom of tank"
+    # Register 2020, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2020);
+
+  - platform: template
+    name: "Reg 2021 - t03 - TTT top of tank"
+    # Register 2021, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2021);
+
+  - platform: template
+    name: "Reg 2022 - t04 - CT coil (evaporator) temperature"
+    # Register 2022, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2022);
+
+  - platform: template
+    name: "Reg 2023 - t05 - SUT suction temperature (compressor refrigerant inlet)"
+    # Register 2023, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2023);
+
+  - platform: template
+    name: "Reg 2025 - Actual temperature"
+    # Register 2025, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2025);
+
+  - platform: template
+    name: "Reg 2028 - t07 - ET exhaust temperature (compressor outlet)"
+    # Register 2028, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.temp(2028);
+
+  - platform: template
+    name: "Reg 2067 - O02 - Fan speed"
+    # Register 2067, raw / 10 (as in the flow); TESY only uses whole numbers
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.value(2067, 1, 10);
+
+  - platform: template
+    name: "Reg 2060 - O03 - EEV steps"
+    # Register 2060, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.value(2060);
+
+  - platform: template
+    name: "Reg 2061 - O04 - Compressor running cumulative time"
+    # Register 2061, raw = days
+    device_class: duration
+    unit_of_measurement: "d"
+    state_class: total_increasing
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.value(2061);
+
+  - platform: template
+    name: "Reg 2066 - O06 - Superheat [K]"
+    # Register 2066, raw / 10
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      return tesy::bwwp.value(2066, 1, 10);
+
+# ============================================================================
+# Text sensors
+# ============================================================================
+text_sensor:
+  # Operating mode. Mapping (reg 1012): 0 Smart, 2 ECO, 3 Auto, 4 High demand,
+  # 7 Vacation, 8 Boost; "Off" if reg 1011 == 0 (device off).
+  - platform: template
+    name: "Reg 1012 - Operating mode"
+    icon: mdi:cog-transfer
+    update_interval: 10s
+    lambda: |-
+      auto m = tesy::bwwp.modus();
+      if (m.empty()) return {};
+      return m;
+
+  # Device clock (reg 1152 minute, 1153 hour, 1154 day, 1155 month, 1156 year, 2 digits)
+  - platform: template
+    name: "Device clock"
+    entity_category: diagnostic
+    icon: mdi:clock-outline
+    update_interval: 30s
+    lambda: |-
+      auto c = tesy::bwwp.clock();
+      if (c.empty()) return {};
+      return c;

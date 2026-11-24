@@ -1,0 +1,1058 @@
+# =============================================================================
+# TESY BWWP - additional entities (taken from the archived Node-RED flow, "on: false" there)
+# Parameter registers (d/g/E/n/H/r/F), bits O10..O14 and unclear measurement/status values.
+#
+# WARNING: these extra entities are PARTLY NOT VERIFIED. The register -> parameter assignment
+# is a hypothesis for many of them (marked "(?)", "(unclear)", "(undocumented)" in the names),
+# and even the others were only checked against one unit. Compare with your own display
+# before trusting a value. Verified and enabled by default are only the entities in tesy-bwwp.yaml.
+#
+# All are "disabled_by_default"; most are "diagnostic".
+#
+# NOTE: All registers are read by their Modbus address (like in the Node-RED flow);
+# their position inside the frame does not matter.
+# Do NOT include the whole file (RAM of the ESP8266!).
+# Better: copy single entries and paste them into tesy-bwwp.yaml under binary_sensor: / sensor:.
+# Including it as a package is prepared (commented out) in tesy-bwwp.yaml.
+# Generated from archive/node-red-waveshare/flow.json (SENSORS list); names follow the TESY manual where known.
+# =============================================================================
+binary_sensor:
+  - platform: template
+    name: "Reg 2050.10 - O10 - Four-way or two-way valve (bit 10)"
+    # Register 2050, bit 10
+    disabled_by_default: true
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 10);
+
+  - platform: template
+    name: "Reg 2050.11 - O11 - Solar circulating pump (bit 11)"
+    # Register 2050, bit 11
+    disabled_by_default: true
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 11);
+
+  - platform: template
+    name: "Reg 2050.12 - O12 - Solar drain valve (bit 12)"
+    # Register 2050, bit 12
+    disabled_by_default: true
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 12);
+
+  - platform: template
+    name: "Reg 2050.13 - O13 - Fan high speed (bit 13)"
+    # Register 2050, bit 13
+    disabled_by_default: true
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 13);
+
+  - platform: template
+    name: "Reg 2050.14 - O14 - Fan low speed (bit 14)"
+    # Register 2050, bit 14
+    disabled_by_default: true
+    lambda: |-
+      return tesy::bwwp.bit_set(2050, 14);
+
+  - platform: template
+    name: "Reg 1120 - r17 - Restart based on TTT"
+    # Register 1120, ON if value != 0
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.nonzero(1120);
+
+  - platform: template
+    name: "Reg 2015 - Device on (mirror of reg 1011)"
+    # Register 2015, ON if value != 0
+    icon: mdi:power
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.nonzero(2015);
+
+  - platform: template
+    name: "Reg 1143 - No vacation (0 on vacation change)"
+    # Register 1143, ON if value != 0
+    icon: mdi:island
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.nonzero(1143);
+
+sensor:
+  - platform: template
+    name: "Reg 2024 - t06 - Solar / recirculation water sensor (?)"
+    # Register 2024, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(2024);
+
+  - platform: template
+    name: "Reg 1013 - (operating mode?) 2 -> 8 on Boost"
+    # Register 1013, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1013);
+
+  - platform: template
+    name: "Reg 2016 - Mode status word (= reg 1012 x 16)"
+    # Register 2016, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(2016);
+
+  - platform: template
+    name: "Reg 2012 - O17 - DSP software version (?)"
+    # Register 2012, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(2012);
+
+  - platform: template
+    name: "Reg 2014 - O18 - PFC software version (?)"
+    # Register 2014, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(2014);
+
+  - platform: template
+    name: "Reg 1034 - d04 - Defrost entry temperature"
+    # Register 1034, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1034);
+
+  - platform: template
+    name: "Reg 1035 - d03 - Defrost exit temperature"
+    # Register 1035, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1035);
+
+  - platform: template
+    name: "Reg 1036 - d01 - Defrost cycle [min]"
+    # Register 1036, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1036);
+
+  - platform: template
+    name: "Reg 1037 - d02 - Maximum defrosting time [min]"
+    # Register 1037, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1037);
+
+  - platform: template
+    name: "Reg 1038 - d06 - Defrost ambient temperature deviation after slippage"
+    # Register 1038, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1038);
+
+  - platform: template
+    name: "Reg 1040 - d08 - Defrost coil temperature deviation after slippage (2)"
+    # Register 1040, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1040);
+
+  - platform: template
+    name: "Reg 1041 - d07 - Defrost coil temperature deviation after slippage (10)"
+    # Register 1041, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1041);
+
+  - platform: template
+    name: "Reg 1042 - d10 - Slip end coil temperature (?)"
+    # Register 1042, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1042);
+
+  - platform: template
+    name: "Reg 1043 - d11 - Eco defrost minimum time [min]"
+    # Register 1043, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1043);
+
+  - platform: template
+    name: "Reg 1051 - d05 - Slip defrosting coil temperature minimum"
+    # Register 1051, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1051);
+
+  - platform: template
+    name: "Reg 1046 - g01 - Disinfection target temperature"
+    # Register 1046, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1046);
+
+  - platform: template
+    name: "Reg 1047 - g02 - Disinfection maintenance time [min]"
+    # Register 1047, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1047);
+
+  - platform: template
+    name: "Reg 1048 - g03 - Disinfection start time [h]"
+    # Register 1048, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1048);
+
+  - platform: template
+    name: "Reg 1049 - g04 - Disinfection cycle [days]"
+    # Register 1049, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1049);
+
+  - platform: template
+    name: "Reg 1055 - E01 - EEV adjustment (1 = automatic)"
+    # Register 1055, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1055);
+
+  - platform: template
+    name: "Reg 1056 - E02 - EEV target superheat"
+    # Register 1056, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1056);
+
+  - platform: template
+    name: "Reg 1057 - E03 - EEV initial steps (raw = steps / 10)"
+    # Register 1057, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1057);
+
+  - platform: template
+    name: "Reg 1058 - E04 - EEV minimum steps (raw = steps / 10)"
+    # Register 1058, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1058);
+
+  - platform: template
+    name: "Reg 1059 - E05 - EEV defrost steps (raw = steps / 10)"
+    # Register 1059, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1059);
+
+  - platform: template
+    name: "Reg 1062 - n13 - Circulation pump start temperature"
+    # Register 1062, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1062);
+
+  - platform: template
+    name: "Reg 1063 - n14 - Circulation pump start temperature difference"
+    # Register 1063, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1063);
+
+  - platform: template
+    name: "Reg 1081 - n02 - Solar pump maximum running time [min]"
+    # Register 1081, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1081);
+
+  - platform: template
+    name: "Reg 1082 - n03 - Solar pump start-up temperature difference"
+    # Register 1082, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1082);
+
+  - platform: template
+    name: "Reg 1085 - n06 - Night cooling stop [h]"
+    # Register 1085, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1085);
+
+  - platform: template
+    name: "Reg 1086 - n07 - Night cooling start temperature"
+    # Register 1086, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1086);
+
+  - platform: template
+    name: "Reg 1087 - n08 - Night cooling stop differential"
+    # Register 1087, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1087);
+
+  - platform: template
+    name: "Reg 1088 - n09 - Solar drain valve temperature"
+    # Register 1088, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1088);
+
+  - platform: template
+    name: "Reg 1089 - n10 - Solar pump stop temperature"
+    # Register 1089, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1089);
+
+  - platform: template
+    name: "Reg 1066 - H05 - Time after thermostat shutdown in economy mode [min]"
+    # Register 1066, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1066);
+
+  - platform: template
+    name: "Reg 1067 - H01 - Power-down memory function"
+    # Register 1067, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1067);
+
+  - platform: template
+    name: "Reg 1068 - H03 - Mixed water / lower water temperature proportion"
+    # Register 1068, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1068);
+
+  - platform: template
+    name: "Reg 1105 - r02 - Enable switch solar / low pressure"
+    # Register 1105, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1105);
+
+  - platform: template
+    name: "Reg 1106 - r03 - Restart temperature difference (T02)"
+    # Register 1106, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1106);
+
+  - platform: template
+    name: "Reg 1107 - r04 - Electric heating setting temperature enabled (= boost flag?)"
+    # Register 1107, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1107);
+
+  - platform: template
+    name: "Reg 1108 - r05 - Electric heating setting temperature"
+    # Register 1108, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1108);
+
+  - platform: template
+    name: "Reg 1109 - r06 - Electric heating start delay (raw = min / 5)"
+    # Register 1109, raw x 5 = minutes
+    device_class: duration
+    unit_of_measurement: "min"
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1109, 5);
+
+  - platform: template
+    name: "Reg 1110 - r07 - Electric heating replaces compressor"
+    # Register 1110, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1110);
+
+  - platform: template
+    name: "Reg 1111 - r08 - Ambient temperature: electric heating replaces compressor"
+    # Register 1111, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1111);
+
+  - platform: template
+    name: "Reg 1112 - r09 - Ambient temperature: electric heating starts without delay"
+    # Register 1112, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1112);
+
+  - platform: template
+    name: "Reg 1113 - r10 - Ambient temperature: electric heating delayed start"
+    # Register 1113, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1113);
+
+  - platform: template
+    name: "Reg 1115 - r12 - Compressor forced-stop temperature"
+    # Register 1115, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1115);
+
+  - platform: template
+    name: "Reg 1116 - r13 - External control (PV / SG)"
+    # Register 1116, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1116);
+
+  - platform: template
+    name: "Reg 1117 - r14 - Second external temperature set point (PV)"
+    # Register 1117, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1117);
+
+  - platform: template
+    name: "Reg 1118 - r15 - High-temperature compressor stop temperature"
+    # Register 1118, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1118);
+
+  - platform: template
+    name: "Reg 1119 - r16? - (undocumented) value 3"
+    # Register 1119, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1119);
+
+  - platform: template
+    name: "Reg 1121 - r18 - Restart temperature difference at top of tank"
+    # Register 1121, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1121);
+
+  - platform: template
+    name: "Reg 1122 - r19 - Compressor stop temperature 1"
+    # Register 1122, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1122);
+
+  - platform: template
+    name: "Reg 1123 - r20 - Compressor stop temperature 2"
+    # Register 1123, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1123);
+
+  - platform: template
+    name: "Reg 1124 - r21 - Highest ambient temperature: electric heating replaces compressor"
+    # Register 1124, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1124);
+
+  - platform: template
+    name: "Reg 1125 - r22 - Restart temperature difference (T03, High-Demand mode)"
+    # Register 1125, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1125);
+
+  - platform: template
+    name: "Reg 1162 - F03 - Fan fault logic enable"
+    # Register 1162, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1162);
+
+  - platform: template
+    name: "Reg 1163 - F04 - Fan high speed value"
+    # Register 1163, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1163);
+
+  - platform: template
+    name: "Reg 1164 - F05 - Fan low speed value"
+    # Register 1164, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1164);
+
+  - platform: template
+    name: "Reg 1165 - F06 - Fan coil temperature at high point"
+    # Register 1165, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1165);
+
+  - platform: template
+    name: "Reg 1166 - F07 - Fan coil temperature at low point"
+    # Register 1166, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1166);
+
+  - platform: template
+    name: "Reg 1168 - F09 - DC fan speed 1"
+    # Register 1168, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1168);
+
+  - platform: template
+    name: "Reg 1169 - F10 - DC fan speed 2"
+    # Register 1169, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1169);
+
+  - platform: template
+    name: "Reg 1170 - F11 - DC fan speed 3"
+    # Register 1170, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1170);
+
+  - platform: template
+    name: "Reg 1171 - F12 - DC fan speed 4"
+    # Register 1171, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1171);
+
+  - platform: template
+    name: "Reg 1172 - F13 - DC fan speed 5"
+    # Register 1172, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1172);
+
+  - platform: template
+    name: "Reg 2030 - (unclear) 39 compressor on / 40 off / 69 boost"
+    # Register 2030, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(2030);
+
+  - platform: template
+    name: "Reg 2011 - (unclear) 32"
+    # Register 2011, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(2011);
+
+  - platform: template
+    name: "Reg 2013 - (unclear) 30, copy of reg 1173"
+    # Register 2013, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(2013);
+
+  - platform: template
+    name: "Reg 1023 - (undocumented, temp?) -15"
+    # Register 1023, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1023);
+
+  - platform: template
+    name: "Reg 1024 - (undocumented, temp?) 15"
+    # Register 1024, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1024);
+
+  - platform: template
+    name: "Reg 1026 - (undocumented, temp?) -4"
+    # Register 1026, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1026);
+
+  - platform: template
+    name: "Reg 1029 - (undocumented, temp?) -5"
+    # Register 1029, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1029);
+
+  - platform: template
+    name: "Reg 1030 - (undocumented, temp?) 0"
+    # Register 1030, T = raw/2 - 30
+    device_class: temperature
+    unit_of_measurement: "°C"
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.temp(1030);
+
+  - platform: template
+    name: "Reg 1033 - (factory date? 0x0819 = 08/25)"
+    # Register 1033, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1033);
+
+  - platform: template
+    name: "Reg 1074 - (undocumented) 3"
+    # Register 1074, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1074);
+
+  - platform: template
+    name: "Reg 1076 - H08? - Central control address (?)"
+    # Register 1076, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1076);
+
+  - platform: template
+    name: "Reg 1077 - (undocumented) 1"
+    # Register 1077, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1077);
+
+  - platform: template
+    name: "Reg 1130 - (vacation parameter?) 24"
+    # Register 1130, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1130);
+
+  - platform: template
+    name: "Reg 1131 - (vacation parameter?) 1"
+    # Register 1131, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1131);
+
+  - platform: template
+    name: "Reg 1132 - (vacation parameter?) 1"
+    # Register 1132, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1132);
+
+  - platform: template
+    name: "Reg 1173 - (fan parameter?) 30"
+    # Register 1173, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1173);
+
+  - platform: template
+    name: "Reg 1174 - (fan parameter?) 910"
+    # Register 1174, raw value
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 10s
+    disabled_by_default: true
+    entity_category: diagnostic
+    lambda: |-
+      return tesy::bwwp.value(1174);

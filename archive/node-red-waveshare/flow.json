@@ -1,0 +1,208 @@
+[
+    {
+        "id": "tesy_tab",
+        "type": "tab",
+        "label": "TESY BWWP RS485",
+        "disabled": false,
+        "info": "Passively reads the RS485 frames of the TESY Aquathermica Pro (BWWP) via a Waveshare RS485-to-Ethernet gateway -> MQTT -> Home Assistant"
+    },
+    {
+        "id": "tesy_tcp",
+        "type": "tcp in",
+        "z": "tesy_tab",
+        "name": "Waveshare RS485 gateway (TCP server mode)",
+        "server": "client",
+        "host": "192.168.1.50",
+        "port": "502",
+        "datamode": "stream",
+        "datatype": "buffer",
+        "newline": "",
+        "topic": "",
+        "trim": false,
+        "base64": false,
+        "tls": "",
+        "x": 130,
+        "y": 100,
+        "wires": [
+            [
+                "tesy_fn",
+                "0b93a4716b15261d"
+            ]
+        ]
+    },
+    {
+        "id": "tesy_fn",
+        "type": "function",
+        "z": "tesy_tab",
+        "name": "Decode + HA Discovery",
+        "func": "// TESY Aquathermica Pro (BWWP) - RS485 sniffer -> MQTT / Home Assistant\n// Input 1: Buffer (TCP stream from the Waveshare gateway, Modbus-TCP framing) -> decoded, output 1 = state\n// Input 2: msg.topic === 'discover'                                         -> output 2 = MQTT discovery configs (retained)\n//\n// Temperature scaling: T[degC] = raw/2 - 30   (verified: reg 1104, 2020, 2021, 2025)\n// Names containing \"?\" are NOT verified (hypotheses) -> rename here after checking.\n\nconst STATE_TOPIC = 'tesy/bwwp/state';\nconst DISC_PREFIX = 'homeassistant';\nconst DEV_ID = 'tesy_bwwp';\nconst HEARTBEAT_MS = 60000;   // also publish the state every 60 s without a change (because of expire_after)\nconst EXPIRE_S = 180;         // entity becomes 'unavailable' after 180 s without data\n\n// type: 'temp' (raw/2-30) | 'raw' | 'bool' (raw != 0) | 'bit' | 'legio' | 'map' | 'dur_min' | 'dur_d'\n// prec: 0 = round to a whole number; on: enabled by default; diag: entity category 'diagnostic'\nconst SENSORS = [\n    { key: 'soll', name: 'Reg 1104 - Setpoint temperature', reg: 1104, type: 'temp', on: true },\n    { key: 'legio', name: 'Legionella protection', reg: 1047, type: 'legio', on: true },\n    { key: 't2019', name: 'Reg 2019 - t01 - AT ambient temperature', reg: 2019, type: 'temp', on: true },\n    { key: 't2020', name: 'Reg 2020 - t02 - BTT bottom of tank', reg: 2020, type: 'temp', on: true },\n    { key: 't2021', name: 'Reg 2021 - t03 - TTT top of tank', reg: 2021, type: 'temp', on: true },\n    { key: 't2022', name: 'Reg 2022 - t04 - CT coil (evaporator) temperature', reg: 2022, type: 'temp', on: true },\n    { key: 't2023', name: 'Reg 2023 - t05 - SUT suction temperature (compressor refrigerant inlet)', reg: 2023, type: 'temp', on: true },\n    { key: 't2025', name: 'Reg 2025 - Actual temperature', reg: 2025, type: 'temp', on: true },\n    { key: 't2028', name: 'Reg 2028 - t07 - ET exhaust temperature (compressor outlet)', reg: 2028, type: 'temp', on: true },\n    { key: 'r2067', name: 'Reg 2067 - O02 - Fan speed', reg: 2067, type: 'raw', div: 10, prec: 0, on: true },\n    { key: 'p2024', name: 'Reg 2024 - t06 - Solar / recirculation water sensor (?)', reg: 2024, type: 'temp', on: false, diag: true },\n    { key: 'p2060', name: 'Reg 2060 - O03 - EEV steps', reg: 2060, type: 'raw', on: true },\n    { key: 'p2061', name: 'Reg 2061 - O04 - Compressor running cumulative time', reg: 2061, type: 'dur_d', on: true },\n    { key: 'modus', name: 'Reg 1012 - Operating mode', reg: 1012, type: 'map', offReg: 1011, map: { 0: 'Smart', 2: 'ECO', 3: 'Auto', 4: 'High demand', 7: 'Vacation', 8: 'Boost' }, options: ['Off', 'ECO', 'Auto', 'Smart', 'Vacation', 'Boost', 'High demand', 'Unknown'], on: true },\n    { key: 'p1013', name: 'Reg 1013 - (operating mode?) 2 -> 8 on Boost', reg: 1013, type: 'raw', on: false, diag: true },\n    { key: 'p2016', name: 'Reg 2016 - Mode status word (= reg 1012 x 16)', reg: 2016, type: 'raw', on: false, diag: true },\n    { key: 'p2012', name: 'Reg 2012 - O17 - DSP software version (?)', reg: 2012, type: 'raw', on: false, diag: true },\n    { key: 'p2014', name: 'Reg 2014 - O18 - PFC software version (?)', reg: 2014, type: 'raw', on: false, diag: true },\n    { key: 'o08', name: 'Reg 2050.08 - O08 - Compressor (bit 8)', reg: 2050, type: 'bit', bit: 8, on: true },\n    { key: 'o09', name: 'Reg 2050.09 - O09 - Electric heater (bit 9)', reg: 2050, type: 'bit', bit: 9, on: true },\n    { key: 'o10', name: 'Reg 2050.10 - O10 - Four-way or two-way valve (bit 10)', reg: 2050, type: 'bit', bit: 10, on: false },\n    { key: 'o11', name: 'Reg 2050.11 - O11 - Solar circulating pump (bit 11)', reg: 2050, type: 'bit', bit: 11, on: false },\n    { key: 'o12', name: 'Reg 2050.12 - O12 - Solar drain valve (bit 12)', reg: 2050, type: 'bit', bit: 12, on: false },\n    { key: 'o13', name: 'Reg 2050.13 - O13 - Fan high speed (bit 13)', reg: 2050, type: 'bit', bit: 13, on: false },\n    { key: 'o14', name: 'Reg 2050.14 - O14 - Fan low speed (bit 14)', reg: 2050, type: 'bit', bit: 14, on: false },\n    { key: 'p2066', name: 'Reg 2066 - O06 - Superheat [K]', reg: 2066, type: 'raw', div: 10, on: true },\n    { key: 'p1034', name: 'Reg 1034 - d04 - Defrost entry temperature', reg: 1034, type: 'temp', on: false, diag: true },\n    { key: 'p1035', name: 'Reg 1035 - d03 - Defrost exit temperature', reg: 1035, type: 'temp', on: false, diag: true },\n    { key: 'p1036', name: 'Reg 1036 - d01 - Defrost cycle [min]', reg: 1036, type: 'raw', on: false, diag: true },\n    { key: 'p1037', name: 'Reg 1037 - d02 - Maximum defrosting time [min]', reg: 1037, type: 'raw', on: false, diag: true },\n    { key: 'p1038', name: 'Reg 1038 - d06 - Defrost ambient temperature deviation after slippage', reg: 1038, type: 'temp', on: false, diag: true },\n    { key: 'p1040', name: 'Reg 1040 - d08 - Defrost coil temperature deviation after slippage (2)', reg: 1040, type: 'temp', on: false, diag: true },\n    { key: 'p1041', name: 'Reg 1041 - d07 - Defrost coil temperature deviation after slippage (10)', reg: 1041, type: 'temp', on: false, diag: true },\n    { key: 'p1042', name: 'Reg 1042 - d10 - Slip end coil temperature (?)', reg: 1042, type: 'temp', on: false, diag: true },\n    { key: 'p1043', name: 'Reg 1043 - d11 - Eco defrost minimum time [min]', reg: 1043, type: 'raw', on: false, diag: true },\n    { key: 'p1051', name: 'Reg 1051 - d05 - Slip defrosting coil temperature minimum', reg: 1051, type: 'temp', on: false, diag: true },\n    { key: 'p1046', name: 'Reg 1046 - g01 - Disinfection target temperature', reg: 1046, type: 'temp', on: false, diag: true },\n    { key: 'p1047', name: 'Reg 1047 - g02 - Disinfection maintenance time [min]', reg: 1047, type: 'raw', on: false, diag: true },\n    { key: 'p1048', name: 'Reg 1048 - g03 - Disinfection start time [h]', reg: 1048, type: 'raw', on: false, diag: true },\n    { key: 'p1049', name: 'Reg 1049 - g04 - Disinfection cycle [days]', reg: 1049, type: 'raw', on: false, diag: true },\n    { key: 'p1055', name: 'Reg 1055 - E01 - EEV adjustment (1 = automatic)', reg: 1055, type: 'raw', on: false, diag: true },\n    { key: 'p1056', name: 'Reg 1056 - E02 - EEV target superheat', reg: 1056, type: 'temp', on: false, diag: true },\n    { key: 'p1057', name: 'Reg 1057 - E03 - EEV initial steps (raw = steps / 10)', reg: 1057, type: 'raw', on: false, diag: true },\n    { key: 'p1058', name: 'Reg 1058 - E04 - EEV minimum steps (raw = steps / 10)', reg: 1058, type: 'raw', on: false, diag: true },\n    { key: 'p1059', name: 'Reg 1059 - E05 - EEV defrost steps (raw = steps / 10)', reg: 1059, type: 'raw', on: false, diag: true },\n    { key: 'p1062', name: 'Reg 1062 - n13 - Circulation pump start temperature', reg: 1062, type: 'temp', on: false, diag: true },\n    { key: 'p1063', name: 'Reg 1063 - n14 - Circulation pump start temperature difference', reg: 1063, type: 'temp', on: false, diag: true },\n    { key: 'p1081', name: 'Reg 1081 - n02 - Solar pump maximum running time [min]', reg: 1081, type: 'raw', on: false, diag: true },\n    { key: 'p1082', name: 'Reg 1082 - n03 - Solar pump start-up temperature difference', reg: 1082, type: 'temp', on: false, diag: true },\n    { key: 'p1085', name: 'Reg 1085 - n06 - Night cooling stop [h]', reg: 1085, type: 'raw', on: false, diag: true },\n    { key: 'p1086', name: 'Reg 1086 - n07 - Night cooling start temperature', reg: 1086, type: 'temp', on: false, diag: true },\n    { key: 'p1087', name: 'Reg 1087 - n08 - Night cooling stop differential', reg: 1087, type: 'temp', on: false, diag: true },\n    { key: 'p1088', name: 'Reg 1088 - n09 - Solar drain valve temperature', reg: 1088, type: 'temp', on: false, diag: true },\n    { key: 'p1089', name: 'Reg 1089 - n10 - Solar pump stop temperature', reg: 1089, type: 'temp', on: false, diag: true },\n    { key: 'p1066', name: 'Reg 1066 - H05 - Time after thermostat shutdown in economy mode [min]', reg: 1066, type: 'raw', on: false, diag: true },\n    { key: 'p1067', name: 'Reg 1067 - H01 - Power-down memory function', reg: 1067, type: 'raw', on: false, diag: true },\n    { key: 'p1068', name: 'Reg 1068 - H03 - Mixed water / lower water temperature proportion', reg: 1068, type: 'raw', on: false, diag: true },\n    { key: 'p1105', name: 'Reg 1105 - r02 - Enable switch solar / low pressure', reg: 1105, type: 'raw', on: false, diag: true },\n    { key: 'p1106', name: 'Reg 1106 - r03 - Restart temperature difference (T02)', reg: 1106, type: 'temp', on: false, diag: true },\n    { key: 'p1107', name: 'Reg 1107 - r04 - Electric heating setting temperature enabled (= boost flag?)', reg: 1107, type: 'raw', on: false, diag: true },\n    { key: 'p1108', name: 'Reg 1108 - r05 - Electric heating setting temperature', reg: 1108, type: 'temp', on: false, diag: true },\n    { key: 'p1109', name: 'Reg 1109 - r06 - Electric heating start delay (raw = min / 5)', reg: 1109, type: 'dur_min', mul: 5, on: false, diag: true },\n    { key: 'p1110', name: 'Reg 1110 - r07 - Electric heating replaces compressor', reg: 1110, type: 'raw', on: false, diag: true },\n    { key: 'p1111', name: 'Reg 1111 - r08 - Ambient temperature: electric heating replaces compressor', reg: 1111, type: 'temp', on: false, diag: true },\n    { key: 'p1112', name: 'Reg 1112 - r09 - Ambient temperature: electric heating starts without delay', reg: 1112, type: 'temp', on: false, diag: true },\n    { key: 'p1113', name: 'Reg 1113 - r10 - Ambient temperature: electric heating delayed start', reg: 1113, type: 'temp', on: false, diag: true },\n    { key: 'p1115', name: 'Reg 1115 - r12 - Compressor forced-stop temperature', reg: 1115, type: 'temp', on: false, diag: true },\n    { key: 'p1116', name: 'Reg 1116 - r13 - External control (PV / SG)', reg: 1116, type: 'raw', on: false, diag: true },\n    { key: 'p1117', name: 'Reg 1117 - r14 - Second external temperature set point (PV)', reg: 1117, type: 'temp', on: false, diag: true },\n    { key: 'p1118', name: 'Reg 1118 - r15 - High-temperature compressor stop temperature', reg: 1118, type: 'temp', on: false, diag: true },\n    { key: 'p1119', name: 'Reg 1119 - r16? - (undocumented) value 3', reg: 1119, type: 'raw', on: false, diag: true },\n    { key: 'p1120', name: 'Reg 1120 - r17 - Restart based on TTT', reg: 1120, type: 'bool', on: false, diag: true },\n    { key: 'p1121', name: 'Reg 1121 - r18 - Restart temperature difference at top of tank', reg: 1121, type: 'temp', on: false, diag: true },\n    { key: 'p1122', name: 'Reg 1122 - r19 - Compressor stop temperature 1', reg: 1122, type: 'temp', on: false, diag: true },\n    { key: 'p1123', name: 'Reg 1123 - r20 - Compressor stop temperature 2', reg: 1123, type: 'temp', on: false, diag: true },\n    { key: 'p1124', name: 'Reg 1124 - r21 - Highest ambient temperature: electric heating replaces compressor', reg: 1124, type: 'temp', on: false, diag: true },\n    { key: 'p1125', name: 'Reg 1125 - r22 - Restart temperature difference (T03, High-Demand mode)', reg: 1125, type: 'temp', on: false, diag: true },\n    { key: 'p1162', name: 'Reg 1162 - F03 - Fan fault logic enable', reg: 1162, type: 'raw', on: false, diag: true },\n    { key: 'p1163', name: 'Reg 1163 - F04 - Fan high speed value', reg: 1163, type: 'raw', on: false, diag: true },\n    { key: 'p1164', name: 'Reg 1164 - F05 - Fan low speed value', reg: 1164, type: 'raw', on: false, diag: true },\n    { key: 'p1165', name: 'Reg 1165 - F06 - Fan coil temperature at high point', reg: 1165, type: 'temp', on: false, diag: true },\n    { key: 'p1166', name: 'Reg 1166 - F07 - Fan coil temperature at low point', reg: 1166, type: 'temp', on: false, diag: true },\n    { key: 'p1168', name: 'Reg 1168 - F09 - DC fan speed 1', reg: 1168, type: 'raw', on: false, diag: true },\n    { key: 'p1169', name: 'Reg 1169 - F10 - DC fan speed 2', reg: 1169, type: 'raw', on: false, diag: true },\n    { key: 'p1170', name: 'Reg 1170 - F11 - DC fan speed 3', reg: 1170, type: 'raw', on: false, diag: true },\n    { key: 'p1171', name: 'Reg 1171 - F12 - DC fan speed 4', reg: 1171, type: 'raw', on: false, diag: true },\n    { key: 'p1172', name: 'Reg 1172 - F13 - DC fan speed 5', reg: 1172, type: 'raw', on: false, diag: true },\n    { key: 'p1011', name: 'Reg 1011 - Device on (0 = off)', reg: 1011, type: 'bool', icon: 'mdi:power', on: true },\n    { key: 'p2015', name: 'Reg 2015 - Device on (mirror of reg 1011)', reg: 2015, type: 'bool', icon: 'mdi:power', on: false, diag: true },\n    { key: 'p1129', name: 'Reg 1129 - Vacation active', reg: 1129, type: 'bool', icon: 'mdi:island', on: true },\n    { key: 'p1143', name: 'Reg 1143 - No vacation (0 on vacation change)', reg: 1143, type: 'bool', icon: 'mdi:island', on: false, diag: true },\n    { key: 'boost', name: 'Reg 1107 - r04 - Electric heating enabled (Boost or High-Demand)', reg: 1107, type: 'bool', icon: 'mdi:flash', on: true },\n    { key: 'p2030', name: 'Reg 2030 - (unclear) 39 compressor on / 40 off / 69 boost', reg: 2030, type: 'raw', on: false, diag: true },\n    { key: 'p2011', name: 'Reg 2011 - (unclear) 32', reg: 2011, type: 'raw', on: false, diag: true },\n    { key: 'p2013', name: 'Reg 2013 - (unclear) 30, copy of reg 1173', reg: 2013, type: 'raw', on: false, diag: true },\n    { key: 'p1023', name: 'Reg 1023 - (undocumented, temp?) -15', reg: 1023, type: 'temp', on: false, diag: true },\n    { key: 'p1024', name: 'Reg 1024 - (undocumented, temp?) 15', reg: 1024, type: 'temp', on: false, diag: true },\n    { key: 'p1026', name: 'Reg 1026 - (undocumented, temp?) -4', reg: 1026, type: 'temp', on: false, diag: true },\n    { key: 'p1029', name: 'Reg 1029 - (undocumented, temp?) -5', reg: 1029, type: 'temp', on: false, diag: true },\n    { key: 'p1030', name: 'Reg 1030 - (undocumented, temp?) 0', reg: 1030, type: 'temp', on: false, diag: true },\n    { key: 'p1033', name: 'Reg 1033 - (factory date? 0x0819 = 08/25)', reg: 1033, type: 'raw', on: false, diag: true },\n    { key: 'p1074', name: 'Reg 1074 - (undocumented) 3', reg: 1074, type: 'raw', on: false, diag: true },\n    { key: 'p1076', name: 'Reg 1076 - H08? - Central control address (?)', reg: 1076, type: 'raw', on: false, diag: true },\n    { key: 'p1077', name: 'Reg 1077 - (undocumented) 1', reg: 1077, type: 'raw', on: false, diag: true },\n    { key: 'p1130', name: 'Reg 1130 - (vacation parameter?) 24', reg: 1130, type: 'raw', on: false, diag: true },\n    { key: 'p1131', name: 'Reg 1131 - (vacation parameter?) 1', reg: 1131, type: 'raw', on: false, diag: true },\n    { key: 'p1132', name: 'Reg 1132 - (vacation parameter?) 1', reg: 1132, type: 'raw', on: false, diag: true },\n    { key: 'p1173', name: 'Reg 1173 - (fan parameter?) 30', reg: 1173, type: 'raw', on: false, diag: true },\n    { key: 'p1174', name: 'Reg 1174 - (fan parameter?) 910', reg: 1174, type: 'raw', on: false, diag: true },\n];\n// Device clock: reg 1152 minute, 1153 hour, 1154 day, 1155 month, 1156 year (2 digits)\nconst CLOCK = { key: 'clock', name: 'Device clock' };\n\n// ---------------------------------------------------------------- Discovery\nif (!Buffer.isBuffer(msg.payload)) {\n    if (msg.topic !== 'discover') return null;\n    const device = {\n        identifiers: [DEV_ID],\n        name: 'TESY Aquathermica Pro',\n        manufacturer: 'TESY',\n        model: 'Aquathermica Pro (BWWP)'\n    };\n    const out = [];\n    const base = (s, domain) => {\n        const c = {\n            name: s.name,\n            unique_id: `${DEV_ID}_${s.key}`,\n            default_entity_id: `${domain}.${DEV_ID}_${s.key}`,   // HA >= 2025.10 (object_id is removed from 2026.4)\n            state_topic: STATE_TOPIC,\n            value_template: `{{ value_json.${s.key} }}`,\n            expire_after: EXPIRE_S,\n            device: device\n        };\n        if (s.diag) c.entity_category = 'diagnostic';\n        if (s.on === false) c.enabled_by_default = false;\n        return c;\n    };\n    for (const s of SENSORS) {\n        let domain = 'sensor';\n        let cfg;\n        if (s.type === 'bool' || s.type === 'bit' || s.type === 'legio') {\n            domain = 'binary_sensor';\n            cfg = base(s, domain);\n            cfg.payload_on = 'ON';\n            cfg.payload_off = 'OFF';\n            cfg.icon = s.icon || 'mdi:toggle-switch-outline';\n        } else {\n            cfg = base(s, domain);\n            if (s.type === 'temp') {\n                cfg.device_class = 'temperature';\n                cfg.unit_of_measurement = '°C';\n                cfg.state_class = 'measurement';\n                cfg.suggested_display_precision = 1;\n            } else if (s.type === 'dur_min') {\n                cfg.device_class = 'duration';\n                cfg.unit_of_measurement = 'min';\n                cfg.state_class = 'measurement';\n            } else if (s.type === 'dur_d') {\n                cfg.device_class = 'duration';\n                cfg.unit_of_measurement = 'd';\n                cfg.state_class = 'total_increasing';\n            } else if (s.type === 'map') {\n                cfg.device_class = 'enum';\n                cfg.options = s.options;\n            } else {\n                cfg.state_class = 'measurement';\n            }\n        }\n        out.push({ topic: `${DISC_PREFIX}/${domain}/${DEV_ID}/${s.key}/config`,\n                   payload: JSON.stringify(cfg), retain: true, qos: 1 });\n    }\n    const cc = base({ key: CLOCK.key, name: CLOCK.name, diag: true, on: true }, 'sensor');\n    cc.icon = 'mdi:clock-outline';\n    out.push({ topic: `${DISC_PREFIX}/sensor/${DEV_ID}/${CLOCK.key}/config`,\n               payload: JSON.stringify(cc), retain: true, qos: 1 });\n    node.status({ fill: 'blue', shape: 'dot', text: `Discovery: ${out.length} entities` });\n    return [null, out];\n}\n\n// ---------------------------------------------------------------- Decoding\n// Reassemble the stream (MBAP: 2 byte TransId, 2 byte ProtoId=0, 2 byte length, then unit/FC/...)\nlet buf = Buffer.concat([context.get('buf') || Buffer.alloc(0), msg.payload]);\nconst regs = context.get('regs') || {};\nlet frames = 0;\n\nwhile (buf.length >= 13) {\n    if (buf.readUInt16BE(2) !== 0) { buf = buf.subarray(1); continue; }  // no MBAP header -> resync\n    const total = 6 + buf.readUInt16BE(4);\n    if (total < 13 || total > 300) { buf = buf.subarray(1); continue; }\n    if (buf.length < total) break;                                        // frame incomplete\n    const f = buf.subarray(0, total);\n    buf = buf.subarray(total);\n\n    const fc = f[7];\n    if (fc !== 0x10) continue;                                            // only Write Multiple Registers (FC 0x10)\n    const addr = f.readUInt16BE(8);\n    const qty = f.readUInt16BE(10);\n    const bc = f[12];\n    if (bc !== qty * 2 || total !== 13 + bc) continue;                    // inconsistent\n    for (let i = 0; i < qty; i++) regs[addr + i] = f.readUInt16BE(13 + 2 * i);\n    frames++;\n}\nif (buf.length > 1024) buf = Buffer.alloc(0);                             // safety valve\ncontext.set('buf', buf);\ncontext.set('regs', regs);\nif (!frames) return null;\n\n// Build the state\nconst st = {};\nfor (const s of SENSORS) {\n    const r = regs[s.reg];\n    if (r === undefined) continue;\n    if (s.type === 'temp') st[s.key] = Math.round((r / 2 - 30) * 10) / 10;\n    else if (s.type === 'map') st[s.key] = (s.offReg && regs[s.offReg] === 0) ? 'Off' : ((s.map[r] !== undefined) ? s.map[r] : 'Unknown');\n    else if (s.type === 'bit') st[s.key] = ((r >> s.bit) & 1) ? 'ON' : 'OFF';\n    else if (s.type === 'legio') st[s.key] = (r !== 0) ? 'ON' : 'OFF';\n    else if (s.type === 'bool') st[s.key] = r ? 'ON' : 'OFF';\n    else {\n      let v = r;\n      if (s.mul) v *= s.mul;\n      if (s.div) v /= s.div;\n      st[s.key] = (s.prec === 0) ? Math.round(v) : Math.round(v * 10) / 10;   // prec: 0 -> whole number (fan speed)\n    }\n}\nif (regs[1152] !== undefined && regs[1156] !== undefined) {\n    const p = (n) => String(n).padStart(2, '0');\n    st[CLOCK.key] = `${p(regs[1154])}.${p(regs[1155])}.20${p(regs[1156])} ${p(regs[1153])}:${p(regs[1152])}`;\n}\n\n// Publish only after all three blocks (1001/1091/2001) have been received once\nif (Object.keys(st).length < SENSORS.length + 1) return null;\n\n// Publish only on change or as heartbeat (the clock does not count as a change)\nconst cmp = Object.assign({}, st); delete cmp[CLOCK.key];\nconst sig = JSON.stringify(cmp);\nconst now = Date.now();\nif (sig === context.get('sig') && now - (context.get('last') || 0) < HEARTBEAT_MS) return null;\ncontext.set('sig', sig);\ncontext.set('last', now);\n\nnode.status({ fill: 'green', shape: 'dot', text: `soll ${st.soll} / actual ${st.t2025} °C` });\nreturn [{ topic: STATE_TOPIC, payload: JSON.stringify(st), retain: false, qos: 0 }, null];\n",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 100,
+        "wires": [
+            [
+                "tesy_mqtt",
+                "3d04348c6f1183a9"
+            ],
+            [
+                "tesy_mqtt"
+            ]
+        ]
+    },
+    {
+        "id": "tesy_mqtt",
+        "type": "mqtt out",
+        "z": "tesy_tab",
+        "name": "MQTT",
+        "topic": "",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8eecdd67.c2fff",
+        "x": 890,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "tesy_inj",
+        "type": "inject",
+        "z": "tesy_tab",
+        "name": "Discovery on start",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "discover",
+        "payload": "go",
+        "payloadType": "str",
+        "x": 170,
+        "y": 180,
+        "wires": [
+            [
+                "tesy_fn"
+            ]
+        ]
+    },
+    {
+        "id": "tesy_ha",
+        "type": "mqtt in",
+        "z": "tesy_tab",
+        "name": "HA restart",
+        "topic": "homeassistant/status",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "8eecdd67.c2fff",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 240,
+        "wires": [
+            [
+                "tesy_online"
+            ]
+        ]
+    },
+    {
+        "id": "tesy_online",
+        "type": "function",
+        "z": "tesy_tab",
+        "name": "only on 'online'",
+        "func": "if (String(msg.payload) !== 'online') return null;\nreturn { topic: 'discover', payload: 'ha-online' };",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 240,
+        "wires": [
+            [
+                "tesy_fn"
+            ]
+        ]
+    },
+    {
+        "id": "3d04348c6f1183a9",
+        "type": "debug",
+        "z": "tesy_tab",
+        "name": "debug: state",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "0b93a4716b15261d",
+        "type": "debug",
+        "z": "tesy_tab",
+        "name": "debug: raw TCP stream",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 660,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "8eecdd67.c2fff",
+        "type": "mqtt-broker",
+        "name": "mosquitto",
+        "broker": "homeassistant.local",
+        "port": "1883",
+        "clientid": "node-red",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    }
+]
